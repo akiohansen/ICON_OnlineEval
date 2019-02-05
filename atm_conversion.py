@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# Authors: Gernot Geppert, Akio Hansen
+# (University of Hamburg)
+
+# Load required python modules for calculations
 import numpy as np
 
 ### universal gas constant in N*m/(K*mol) = J/(K*mol)
@@ -17,6 +21,11 @@ R_dry_air = R / molar_mass_dry_air
 virt_temp_factor = R_h2o / R_dry_air - 1.0
 ### 0.622
 R_dry_air_to_R_h2o = R_dry_air / R_h2o
+## Constants for dewpoint calculation
+a = 17.271
+b = 237.7 # degC
+## Constants for virtual potential temperature
+R_cp = 0.286 # Kappa
 
 def calc_vapor_pressure(temp, rho, gas_constant):
     """
@@ -29,7 +38,7 @@ def calc_vapor_pressure(temp, rho, gas_constant):
     rho : array_like
         density in kg/m^3
     gas_constant: array_like
-        specicif gas constant in m^2/(s^2*K)
+        specific gas constant in m^2/(s^2*K)
 
     Returns
     -------
@@ -277,3 +286,104 @@ def co2_mass_mr(temp, pressure, co2_conc, abs_hum=None, rel_hum=None,
 
     return mass_mr
 
+def calc_dew_from_rh(temp, rel_hum):
+ 
+    """
+    Calculate Dewpoint temperature from relative humidity.
+
+    Parameters
+    ----------
+    temp : array_like
+        temperatur in degree Celsius
+    rel_hum : array_like, optional
+        relative humidity as fraction of 1, ie. 1 means 100%
+
+    Returns
+    -------
+    out : array_like
+        dew point in degree Celsius
+
+    """
+
+    rel_hum = rel_hum * 100.0
+
+    Td = (b * gamma(temp,rel_hum)) / (a - gamma(temp,rel_hum))
+ 
+    return Td
+ 
+ 
+def gamma(temp,rel_hum):
+
+    """
+    Help function for dewpoint approximation calculation.
+
+    """
+
+    g = (a * temp / (b + temp)) + np.log(rel_hum/100.0)
+ 
+    return g
+
+def calc_rh_from_sh(temp, pressure, spec_hum):
+ 
+    """
+    Calculate relative humidity from specific humidity.
+
+    Assumption: Clausius Clapeyron
+    Source: https://earthscience.stackexchange.com/questions/2360/how-do-i-convert-specific-humidity-to-relative-humidity
+
+    Parameters
+    ----------
+    temp : array_like
+        temperatur in K
+    pressure : array_like
+        (partial) pressure in Pa
+    spec_hum (q) : array_like, optional
+        specific humidity in kg(H2O)/kg(air)
+
+    Returns
+    -------
+    out : array_like
+        relative humidity as fraction of 1, ie. 1 means 100%
+
+    """
+
+    # mass mixing ratios of water vapor at actual conditions
+    w = spec_hum
+
+    # Calculate saturation vapor pressure first and
+    # second mass mixing ratio of water vapor at saturation
+    ws = (0.622 * calc_sat_vapor_pressure(temp)) / pressure
+
+    # Calculate and return relative humidity
+    rh = w/ws
+ 
+    return rh
+
+def calc_thtv_from_sh(temp, pressure, spec_hum):
+ 
+    """
+    Calculate virtual potential temperature.
+
+    Parameters
+    ----------
+    temp : array_like
+        temperatur in K
+    pressure : array_like
+        (partial) pressure in Pa
+    spec_hum (q) : array_like
+        specific humidity in kg(H2O)/kg(air)
+
+    Returns
+    -------
+    out : array_like
+        virtual potential temperature (K)
+
+    """
+
+    # Calculate virtual temperature
+    tv = virtual_temp(temp, spec_hum)
+
+    # Calculate virtual potential temperature
+    thtv = tv * ((100000.0 / pressure)**R_cp)
+ 
+    return thtv
